@@ -7,11 +7,7 @@
 # =============
 #  Bibliotecas
 # =============
-<<<<<<< HEAD
-import pyodbc # Conexión con la base de datos
-=======
 
->>>>>>> a5c6b6cf0cce99474d0888dfbb91b15e36d62cf2
 import configparser # Configuración de la base de datos
 import logging # Registro de errores
 import pyodbc # Conexión con la base de datos
@@ -58,7 +54,8 @@ print("Conexión exitosa al Data Warehouse.")
 #        Extracción
 # ========================
 
-df = pd.read_csv('data/smarts_dataset.csv')
+df = pd.read_csv('data/smarts_dataset.csv', delimiter=',')
+print(f"{df.shape[0]} filas y {df.shape[1]} columnas cargadas.")
 
 # ===================================
 #  Transformaciones para Dimensiones
