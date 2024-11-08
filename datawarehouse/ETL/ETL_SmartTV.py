@@ -5,84 +5,52 @@
 # =====================================
 
 
-
-# ===========
+# =============
 #  Bibliotecas
-# ===========
+# =============
 
 import pyodbc # Conexión con la base de datos
-import configparser # Configuration of the database
-from sqlalchemy import create_engine # Creation of the connection to the DB
+import configparser # Configuración de la base de datos
+from sqlalchemy import create_engine # Creación de la conexión a la BD
+import logging # Registro de errores
+import pandas as pd # Manejo de datos
+import numpy as np # Manejo de matrices
+import re # expresiones regulares
 
-import pandas as pd # Handling of dataframes
-import numpy as np # Handling of arrays
-import re # Regular expressions
-
-from modules.update_dimensions_table import updateDimensionTable, updateDimensionTableIntPK # Function to update dimensions tables
+#from modules.update_dimensions_table import updateDimensionTable, updateDimensionTableIntPK # Function to update dimensions tables
 
 
 
-# =================================
-#  Connection with the Original DB
-#  
-#  Requirements:
-#  - ODBC Driver: https://learn.microsoft.com/es-es/sql/connect/odbc/download-odbc-driver-for-sql-server?view=sql-server-ver16
-#  - Microsoft Access Driver: https://www.microsoft.com/en-us/download/details.aspx?id=13255
-# =================================
 
-# Name of the ODBC DSN
-dsn_name = 'base_ElProfesional'
+# ========================
+# Configuración de conexión
+# ========================
 
-# Read the configuration from the 'secrets.ini' file (contains username and password)
+# Configuración de registro de errores
+logging.basicConfig(filename='errores_etl.log', level=logging.ERROR, format='%(asctime)s %(message)s')
+
+
+# Leer las credenciales de la base de datos desde el archivo secrets.ini
 config = configparser.ConfigParser()
-config.read('./datawarehouse/ETL/secrets.ini')
-username = config['database']['username']
-password = config['database']['password']
-
-conn = pyodbc.connect(f'DSN={dsn_name};UID={username};PWD={password}')
-cursor = conn.cursor()
+config.read('secrets.ini')
 
 
-# ===================================
-#  Connection with the DataWarehouse
-# ===================================
-# Read the configuration from the 'secrets.ini' file (contains username and password)
-DW_username = config['datawarehouse']['DW_username']
-DW_password = config['datawarehouse']['DW_password']
-
-# Create the connection engine
-engine_cubo = create_engine(f"postgresql://{DW_username}:{DW_password}@localhost/ElProfesional_DW")
+usuario = config['database']['username']
+contraseña = config['database']['password']
+host = config['database']['host']
+puerto = config['database']['port']
+nombre_bd_origen = config['database']['dbname']
+nombre_bd_dw = config['datawarehouse']['dbname']
 
 
 
-# =======================================
-#  Save Information from the Original DB
-# =======================================
+# ========================
+# ETAPA 1: Extracción
+# ========================
 
-DB_tablesNamesToConsult = ['Articulos', 'CabVentas', 'Clientes', 'ItemVentas', 'Rubros', 'TipoCliente', 'Vendedor']
-
-# Store DB Tables
-table_info_list = [] # List of dictionaries to store information about the tables
-DB_tables = {}  # Stores the dataframes of the tables that contain data
-
-
-for table in DB_tablesNamesToConsult:
-    query = f'SELECT * FROM {table}'
-    # Store the result in a dataframe
-    DB_tables[table] = pd.read_sql(query, conn)
-
-conn.close()
-
-
-
-# ================================================
-#  Data loading, cleaning, and dimension creation
-# ================================================
-
-# Create a dataframe with the data from the 'CabVentas' table
-df_CabVentas = DB_tables['CabVentas']
-
-# Create a dataframe with the data from the 'ItemVentas' table
-df_ItemVentas = DB_tables['ItemVentas']
-
-
+try:
+    df = pd.read_csv('data/final_final_smart_tv_data.csv')
+    print("Datos cargados exitosamente desde el archivo CSV.")
+except Exception as e:
+    logging.error(f"Error al cargar el archivo CSV: {e}")
+    raise e
