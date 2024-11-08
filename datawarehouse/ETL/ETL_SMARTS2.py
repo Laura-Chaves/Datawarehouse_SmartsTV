@@ -2,7 +2,7 @@ import pandas as pd
 from sqlalchemy import create_engine, text
 
 # Extracción
-csv_file_path = 'Smart_TV_Data_v2.csv'
+csv_file_path = 'data\smarts_dataset.csv'
 df = pd.read_csv(csv_file_path, delimiter=',')
 
 # Transformación
@@ -20,7 +20,7 @@ df = df.merge(grouped, on=['ID Usuario', 'Ciudad', 'Trimestre', 'Dispositivo', '
 df['Total_conexiones'] = df['Total_conexiones'].fillna(0).astype(int)
 
 # Conexión a la base de datos PostgreSQL
-db_connection_str = 'postgresql+psycopg2://postgres:123@localhost:5432/SMARTS'
+db_connection_str = 'postgresql+psycopg2://postgres:123456@localhost:5432/SMARTS'
 engine = create_engine(db_connection_str)
 
 
