@@ -9,10 +9,10 @@
 #  Bibliotecas
 # =============
 
-import pyodbc # Conexión con la base de datos
 import configparser # Configuración de la base de datos
-from sqlalchemy import create_engine # Creación de la conexión a la BD
 import logging # Registro de errores
+import pyodbc # Conexión con la base de datos
+from sqlalchemy import create_engine # Creación de la conexión a la BD
 import pandas as pd # Manejo de datos
 import numpy as np # Manejo de matrices
 import re # expresiones regulares
