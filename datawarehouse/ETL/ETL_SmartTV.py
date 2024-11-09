@@ -7,7 +7,7 @@
 # =============
 #  Bibliotecas
 # =============
-
+from sqlalchemy import create_engine
 import configparser # Configuración de la base de datos
 import logging # Registro de errores
 import pyodbc # Conexión con la base de datos
@@ -41,14 +41,23 @@ password_dw = config['datawarehouse']['password']
 # ========================
 
 # Crear conexión a la base de datos SMART
-conn_smart = pyodbc.connect(f'DSN={dsn_smart};UID={username_smart};PWD={password_smart}')
+# Crear conexión usando SQLAlchemy
+engine_smart = create_engine(
+    f"postgresql+psycopg2://{config['database']['username']}:{config['database']['password']}@{config['database']['host']}:{config['database']['port']}/{config['database']['dbname']}"
+)
+print("Conexión exitosa a la base de datos SMART.")
+
+"""
+conn_smart = pyodbc.connect(
+    f"DRIVER={{PostgreSQL Unicode}};SERVER={config['database']['host']};PORT={config['database']['port']};DATABASE={config['database']['dbname']};UID={config['database']['username']};PWD={config['database']['password']}"
+)
 cursor_smart = conn_smart.cursor()
 print("Conexión exitosa a la base de datos SMART.")
+"""
 
 # Crear conexión al Data Warehouse
 engine_dw = create_engine(f"postgresql://{username_dw}:{password_dw}@localhost/{dsn_dw}")
 print("Conexión exitosa al Data Warehouse.")
-
 
 # ========================
 #        Extracción
@@ -81,7 +90,7 @@ tiempo_df = df[['Dia', 'Mes', 'Año', 'Trimestre']].drop_duplicates().reset_inde
 # Dimensión Dispositivo
 dispositivo_df = df[['Dispositivo', 'Sistema Operativo']].drop_duplicates().reset_index(drop=True)
 dispositivo_df = dispositivo_df.rename(columns={'Dispositivo': 'Tipo_dispositivo', 'Sistema Operativo': 'Sistema_operativo'})
-
+"""
 # =============================
 # Transformación de la tabla de hechos `Consumo`
 # =============================
@@ -90,7 +99,16 @@ consumo_df = df.merge(ubicacion_df, on=['Ciudad', 'Provincia'], how='left') \
                .merge(plataforma_df, left_on='Plataforma', right_on='Nombre_plataforma', how='left') \
                .merge(tiempo_df, on=['Dia', 'Mes', 'Año', 'Trimestre'], how='left') \
                .merge(dispositivo_df, on=['Tipo_dispositivo', 'Sistema_operativo'], how='left')
+"""
+consumo_df = df.merge(ubicacion_df, on=['Ciudad', 'Provincia'], how='left') \
+               .merge(plataforma_df, left_on='Plataforma', right_on='Nombre_plataforma', how='left') \
+               .merge(tiempo_df, on=['Dia', 'Mes', 'Año', 'Trimestre'], how='left') \
+               .merge(dispositivo_df, on=['Tipo_dispositivo', 'Sistema_operativo'], how='left')
 
+print(dispositivo_df.columns)
+print(df.columns)
+
+"""
 # Calcular `Total_conexiones` y `Intentos_acceso_Plataformas`
 consumo_df['Total_conexiones'] = consumo_df.groupby(['Ciudad', 'Provincia', 'Nombre_plataforma', 'Dia', 'Mes', 'Año', 'Trimestre', 'Tipo_dispositivo', 'Sistema_operativo'])['Conexion Exitosa'].transform('sum')
 consumo_df['Intentos_acceso_Plataformas'] = consumo_df.groupby(['Ciudad', 'Provincia', 'Nombre_plataforma', 'Dia', 'Mes', 'Año', 'Trimestre', 'Tipo_dispositivo', 'Sistema_operativo'])['Conexion Exitosa'].transform('count')
@@ -111,3 +129,4 @@ consumo_df.to_sql('Consumo', con=engine_dw, if_exists='append', index=False)
 cursor_smart.close()
 conn_smart.close()
 print("Carga completada en el Data Warehouse.")
+"""
