@@ -1,36 +1,52 @@
-# =====================================
-#  ETL: DataBase "SMARTS"
+# =======================================================
+#  ETL para la Base de Datos "SMARTS"
 #  Autoras: Laura Chaves, Fiorella Righelato, Daiana Gareis
 #  GitHub: https://github.com/Laura-Chaves/Datawarehouse_SmartsTV
-# =====================================
-
+# =======================================================
 
 import pandas as pd
 from sqlalchemy import create_engine, text
 
-# Extracción
+# ===================================
+#   Extracción de Datos
+# ===================================
+
+# Cargar datos del archivo CSV en un DataFrame
 csv_file_path = 'data/Smart_TV_Data_v2.csv'
 df = pd.read_csv(csv_file_path, delimiter=',')
 
-
 # ===================================
-#  Transformaciones para Dimensiones
+#   Transformaciones para Dimensiones
 # ===================================
 
+# Convertir columna 'Fecha' al tipo de datos datetime
 df['Fecha'] = pd.to_datetime(df['Fecha'], format='%Y-%m-%d')
+
+# Separar 'Ciudad' y 'Provincia' de la columna 'Localidad'
 df[['Ciudad', 'Provincia']] = df['Localidad'].str.split(', ', expand=True)
+
+# Extraer día, mes, año y trimestre de la columna 'Fecha'
 df['Dia'] = df['Fecha'].dt.day
 df['Mes'] = df['Fecha'].dt.month
 df['Año'] = df['Fecha'].dt.year
 df['Trimestre'] = df['Fecha'].dt.quarter
+
+# Eliminar columnas originales ya transformadas
 df.drop(columns=['Fecha', 'Localidad'], inplace=True)
 
+# ===================================
+#   Conexión a la Base de Datos
+# ===================================
 
-# Conexión a la base de datos PostgreSQL
+# Crear conexión a la base de datos PostgreSQL
 db_connection_str = 'postgresql+psycopg2://postgres:123456@localhost:5432/SMARTS'
 engine = create_engine(db_connection_str)
 
-# Función para insertar datos
+# ===================================
+#   Función para Insertar Datos
+# ===================================
+
+# Función para insertar datos en la base de datos usando transacciones
 def insert_data(engine, queries):
     with engine.connect() as connection:
         with connection.begin() as transaction:
@@ -42,17 +58,15 @@ def insert_data(engine, queries):
                 transaction.rollback()
                 print(f"Error al insertar datos: {e}")
 
-
+# Lista para almacenar las consultas de inserción
 queries = []
 
-
 # ===================================
-#  Inserciones a las dimensiones
+#   Inserciones en las Dimensiones
 # ===================================
 
-
+# Iterar sobre cada fila del DataFrame para insertar datos en las tablas de dimensión
 for index, row in df.iterrows():
-    # Instrucción SQL y parámetros para cada tabla
     queries.append((
         """
         INSERT INTO ubicacion (id_ubicacion, Ciudad, Provincia)
@@ -87,66 +101,56 @@ for index, row in df.iterrows():
         ON CONFLICT (Dia, Mes, Año) DO NOTHING;
         """,
         {'dia': row['Dia'], 'mes': row['Mes'], 'año': row['Año'], 'trimestre': row['Trimestre']}
-   
     ))
 
-# Llamar a la función para ejecutar todas las inserciones en una transacción
+# Ejecutar las inserciones de las dimensiones en la base de datos
 insert_data(engine, queries)
-
-print("Datos insertados correctamente.")
-
+print("Datos insertados correctamente en las dimensiones.")
 
 # ==========================================
-#  Csv creado para obtener total_conexiones
+#   Agrupar Conexiones Exitosas y Guardar en CSV
 # ==========================================
 
-# Paso 1: Filtrar solo las conexiones exitosas y agrupar para obtener Total_conexiones
+# Filtrar y agrupar conexiones exitosas
 df_filtered = df[df['Conexion Exitosa'] == 1]
 grouped_consumo = df_filtered.groupby(['Dispositivo', 'Ciudad', 'Provincia', 'Trimestre', 'Plataforma']).size().reset_index(name='Total_conexiones')
 
-# Paso 2: Función para obtener el ID de cada dimensión
+# Función para obtener el ID de una dimensión dada una consulta y parámetros
 def get_dimension_id(query, params):
     with engine.connect() as connection:
         result = connection.execute(text(query), params).fetchone()
         return result[0] if result else None
 
-# Paso 3: Generar las columnas con los IDs de las dimensiones
+# Asignar IDs a las dimensiones correspondientes en el DataFrame agrupado
 grouped_consumo['ID_Tiempo'] = grouped_consumo['Trimestre'].apply(
     lambda trimestre: get_dimension_id("SELECT ID_Tiempo FROM tiempo WHERE Trimestre = :trimestre LIMIT 1", {'trimestre': trimestre})
 )
-
 grouped_consumo['ID_Ubicacion'] = grouped_consumo.apply(
     lambda row: get_dimension_id("SELECT ID_Ubicacion FROM ubicacion WHERE Ciudad = :ciudad AND Provincia = :provincia LIMIT 1", {'ciudad': row['Ciudad'], 'provincia': row['Provincia']}), axis=1
 )
-
 grouped_consumo['ID_Plataforma'] = grouped_consumo['Plataforma'].apply(
     lambda plataforma: get_dimension_id("SELECT ID_Plataforma FROM plataforma WHERE Nombre_plataforma = :plataforma LIMIT 1", {'plataforma': plataforma})
 )
-
 grouped_consumo['ID_Dispositivo'] = grouped_consumo['Dispositivo'].apply(
     lambda dispositivo: get_dimension_id("SELECT ID_Dispositivo FROM dispositivo WHERE Tipo_dispositivo = :dispositivo LIMIT 1", {'dispositivo': dispositivo})
 )
 
-# Paso 4: Calcular el total de conexiones exitosas en el dataset original y en el dataset agrupado
+# Mostrar totales de conexiones exitosas y guardar en CSV
 total_conexiones_original = df[df['Conexion Exitosa'] == 1].shape[0]
 total_conexiones_agrupado = grouped_consumo['Total_conexiones'].sum()
-
-# Verificar si ambos totales coinciden
 print(f"Total de conexiones exitosas en el dataset original: {total_conexiones_original}")
 print(f"Total de 'Total_conexiones' en el dataset agrupado: {total_conexiones_agrupado}")
 
-# Paso 5: Guardar el DataFrame `grouped_consumo` en un archivo CSV
+# Guardar el archivo CSV con las conexiones exitosas agrupadas
 grouped_consumo.to_csv('total_conexiones.csv', index=False)
 print("Archivo CSV 'total_conexiones.csv' guardado con éxito.")
 
 # ================================================================
-#  Agregar total_conexiones a la tabla de hechos
-#  junto con los id de cada dimension
+#   Insertar Conexiones Exitosas en la Tabla de Hechos
 # ================================================================
 
-# Leer el archivo CSV que contiene los datos agregados con los IDs de las dimensiones
-csv_file_path = 'total_conexiones.csv'
-df_fact_consumo = pd.read_csv(csv_file_path)
+# Leer datos de conexiones exitosas desde el CSV
+df_fact_consumo = pd.read_csv('total_conexiones.csv')
 
 # Función para insertar o actualizar datos en la tabla de hechos
 def upsert_fact_table(engine, df):
@@ -162,7 +166,6 @@ def upsert_fact_table(engine, df):
         with connection.begin() as transaction:
             try:
                 for index, row in df.iterrows():
-                    # Crear un diccionario con los valores de cada fila
                     params = {
                         'id_tiempo': int(row['ID_Tiempo']),
                         'id_ubicacion': int(row['ID_Ubicacion']),
@@ -170,15 +173,75 @@ def upsert_fact_table(engine, df):
                         'id_dispositivo': int(row['ID_Dispositivo']),
                         'total_conexiones': int(row['Total_conexiones'])
                     }
-                    
-                    # Ejecutar la instrucción de upsert
                     connection.execute(text(upsert_query), params)
-
                 transaction.commit()
-                print("Datos insertados y/o actualizados correctamente en la tabla de hechos.")
+                print("Conexiones exitosas insertadas y/o actualizadas en la tabla de hechos.")
             except Exception as e:
                 transaction.rollback()
                 print(f"Error al insertar o actualizar datos en la tabla de hechos: {e}")
 
-# Llamar a la función para hacer el upsert
+# Ejecutar inserción en la tabla de hechos
 upsert_fact_table(engine, df_fact_consumo)
+
+# =========================================
+#   Insertar Conexiones Fallidas en la Tabla de Hechos
+# =========================================
+
+# Filtrar y agrupar conexiones fallidas
+df_fallidas = df[df['Conexion Exitosa'] == 0]
+matriz_fallidas = df_fallidas.groupby(
+    ['Dispositivo', 'Ciudad', 'Provincia', 'Trimestre', 'Plataforma']
+).size().reset_index(name='Total_conexiones_fallidas')
+
+# Asignar IDs de dimensiones para conexiones fallidas
+matriz_fallidas['ID_Tiempo'] = matriz_fallidas['Trimestre'].apply(
+    lambda trimestre: get_dimension_id("SELECT ID_Tiempo FROM tiempo WHERE Trimestre = :trimestre LIMIT 1", {'trimestre': trimestre})
+)
+matriz_fallidas['ID_Ubicacion'] = matriz_fallidas.apply(
+    lambda row: get_dimension_id("SELECT ID_Ubicacion FROM ubicacion WHERE Ciudad = :ciudad AND Provincia = :provincia LIMIT 1", {'ciudad': row['Ciudad'], 'provincia': row['Provincia']}), axis=1
+)
+matriz_fallidas['ID_Plataforma'] = matriz_fallidas['Plataforma'].apply(
+    lambda plataforma: get_dimension_id("SELECT ID_Plataforma FROM plataforma WHERE Nombre_plataforma = :plataforma LIMIT 1", {'plataforma': plataforma})
+)
+matriz_fallidas['ID_Dispositivo'] = matriz_fallidas['Dispositivo'].apply(
+    lambda dispositivo: get_dimension_id("SELECT ID_Dispositivo FROM dispositivo WHERE Tipo_dispositivo = :dispositivo LIMIT 1", {'dispositivo': dispositivo})
+)
+
+# Función para actualizar conexiones fallidas en la tabla de hechos
+def update_failed_attempts(engine, df):
+    update_query = """
+    UPDATE Consumo
+    SET Intentos_acceso_Plataformas = Intentos_acceso_Plataformas + :total_conexiones_fallidas
+    WHERE ID_Tiempo = :id_tiempo
+      AND ID_Ubicacion = :id_ubicacion
+      AND ID_Plataforma = :id_plataforma
+      AND ID_Dispositivo = :id_dispositivo;
+    """
+    
+    with engine.connect() as connection:
+        with connection.begin() as transaction:
+            try:
+                for index, row in df.iterrows():
+                    params = {
+                        'id_tiempo': int(row['ID_Tiempo']),
+                        'id_ubicacion': int(row['ID_Ubicacion']),
+                        'id_plataforma': int(row['ID_Plataforma']),
+                        'id_dispositivo': int(row['ID_Dispositivo']),
+                        'total_conexiones_fallidas': int(row['Total_conexiones_fallidas'])
+                    }
+                    connection.execute(text(update_query), params)
+                transaction.commit()
+                print("Intentos fallidos actualizados en la tabla de hechos.")
+            except Exception as e:
+                transaction.rollback()
+                print(f"Error al actualizar intentos fallidos en la tabla de hechos: {e}")
+
+# Ejecutar la actualización de conexiones fallidas
+update_failed_attempts(engine, matriz_fallidas)
+total_intentos_fallidos = matriz_fallidas['Total_conexiones_fallidas'].sum()
+print("Total de intentos fallidos en matriz_fallidas:", total_intentos_fallidos)
+
+# ===================================================
+#  Finalización del ETL para la base de datos SMARTS
+# ===================================================
+print("ETL finalizado exitosamente.")
