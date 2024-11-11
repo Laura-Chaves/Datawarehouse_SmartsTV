@@ -9,3 +9,7 @@ ADD CONSTRAINT dispositivo_tipo_unique UNIQUE (Tipo_dispositivo);
 
 ALTER TABLE tiempo
 ADD CONSTRAINT tiempo_dia_mes_ano_unique UNIQUE (Dia, Mes, Año);
+
+ALTER TABLE consumo
+ADD CONSTRAINT consumo_unique_constraint
+UNIQUE (id_tiempo, id_ubicacion, id_plataforma, id_dispositivo);
