@@ -8,7 +8,11 @@ import pandas as pd
 from sqlalchemy import create_engine, text
 
 # Extracción
+<<<<<<< HEAD
 csv_file_path = 'data/Smart_TV_Data_v2.csv'
+=======
+csv_file_path = 'Smart_TV_Data_v2.csv'
+>>>>>>> 77d57fb94a541f6369453c4c5f6d3a0bb6effe45
 df = pd.read_csv(csv_file_path, delimiter=',')
 
 # ===================================
@@ -28,7 +32,11 @@ df.drop(columns=['Fecha', 'Localidad'], inplace=True)
 # ===================================
 
 # Conexión a la base de datos PostgreSQL
+<<<<<<< HEAD
 db_connection_str = 'postgresql+psycopg2://postgres:1234@localhost:5432/SMARTS'
+=======
+db_connection_str = 'postgresql+psycopg2://postgres:123@localhost:5432/SMARTS'
+>>>>>>> 77d57fb94a541f6369453c4c5f6d3a0bb6effe45
 engine = create_engine(db_connection_str)
 
 # ===================================
