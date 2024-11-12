@@ -1,7 +1,7 @@
 SELECT
-    t.Trimestre,
-    SUM(c.Total_conexiones_exitosas) AS Total_Conexiones_Exitosas,
-    SUM(c.Intentos_acceso_fallido) AS Total_Intentos_Fallidos
+	RANK() OVER (ORDER BY SUM(c.Total_conexiones_exitosas + c.Intentos_acceso_fallido) DESC) AS Puesto,
+    SUM(c.Total_conexiones_exitosas + c.Intentos_acceso_fallido) AS Total_Conexiones_Exitosas,
+	t.Trimestre
 FROM
     Consumo c
 JOIN
@@ -9,4 +9,4 @@ JOIN
 GROUP BY
     t.Trimestre
 ORDER BY
-    t.Trimestre ASC;
+    Puesto ASC;
